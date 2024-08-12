@@ -6,7 +6,7 @@ const HomePage = () => {
   const navigate = useNavigate();
 
   const handleNavigate = () => {
-    navigate('/about');
+    navigate('/mainpage');
   };
 
   return (

@@ -52,8 +52,6 @@ function Header() {
     navigate('/');
   };
 
- 
-
   const userLoggedIn = localStorage.getItem('uid') !== null;
 
   return (
