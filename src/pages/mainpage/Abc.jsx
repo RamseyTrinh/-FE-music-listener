@@ -1,6 +1,12 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
     Box,
+    Button,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogContentText,
+    DialogTitle,
     IconButton,
     Slider,
     Table,
@@ -11,34 +17,82 @@ import {
     TableRow,
     TextField,
     Typography,
-    Button
 } from "@mui/material";
 import { PlayArrow, Pause, SkipNext, SkipPrevious, Shuffle, Delete, VolumeDown, VolumeUp } from "@mui/icons-material";
 import SearchIcon from '@mui/icons-material/Search';
 import { socket } from '../../socket';
 
-
 const JukeboxApp = () => {
     const [joinModalOpen, setJoinModalOpen] = useState(false);
     const [clearQueueModalOpen, setClearQueueModalOpen] = useState(false);
-
-    const [hasPlayed, setHasPlayed] = useState(false);
-    const [volume, setVolume] = useState(40);
+    const [volume, setVolume] = useState(50);
     const [isPlaying, setIsPlaying] = useState(false);
-    const [audioSource, setAudioSource] = useState("");
     const [timestamp, setTimestamp] = useState(0);
     const [albumArt, setAlbumArt] = useState("https://baolamdong.vn/file/e7837c02845ffd04018473e6df282e92/dataimages/202004/original/images2282618_song_bien.jpg");
     const [songName, setSongName] = useState("song name");
     const [songArtist, setSongArtist] = useState("song artist");
+    const [songUrl, setSongUrl] = useState("");
+    const [loading, setLoading] = useState(false);
     const [queueList, setQueueList] = useState([]);
 
+    let hasPlayed = false;
+    var audio = document.getElementById("songplayer");
 
-    const audio = document.getElementById("audio_player");
-
+    const handleInputChange = (event) => {
+        setSongUrl(event.target.value);
+    };
+    const handleKeyPress = async (event) => {
+        if (event.key === "Enter") {
+          setLoading(true);
+          try {
+            const response = await fetch("http://127.0.0.1:5135/add_song", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ songurl: songUrl }),
+            });
+    
+            if (response.ok) {
+              const data = await response.json();
+              console.log("Song added to queue:", data);
+              alert("Song added to queue");
+            } else {
+              console.error("Error adding song to queue:", response.statusText);
+            }
+          } catch (error) {
+            console.error("Error adding song to queue:", error);
+          } finally {
+            setLoading(false);
+            setSongUrl("");
+          }
+        }
+      };
 
     const handleVolumeChange = (event, newValue) => {
         setVolume(newValue);
     };
+
+    // const playPause = () => {
+    //     document.getElementById("loadingsong")?.classList.add("hidden")
+    //     if (!hasPlayed) {
+    //         requestInitialSync();
+    //         hasPlayed = true;
+    //         playsong(true);
+            
+    //     } else {
+    //       if (isPlaying) {
+    //         pausesong();
+    //         document.getElementById("play-icon")?.classList.remove("hidden");
+    //         document.getElementById("pause-icon")?.classList.add("hidden");
+    //       } else {
+    //         playsong();
+    //         document.getElementById("play-icon")?.classList.add("hidden");
+    //         document.getElementById("pause-icon")?.classList.remove("hidden");
+
+    //       }
+    //     }
+    // }
 
     socket.on("connect", function () {
         console.log("Connected to server");
@@ -48,55 +102,56 @@ const JukeboxApp = () => {
     socket.on("play", function (data) {
         console.log("Play event received from server", data);
         if (!isPlaying) {
-            audio?.play();
+            audio.play();
             setIsPlaying(true);
         }
     });
-
     socket.on("pause", function (data) {
         console.log("Pause event received from server", data);
-        if (data.timestamp !== undefined && audio !== undefined) {
-            if (audio !== null) {
-                audio.currentTime = data.timestamp;
-            }
-            setTimestamp(data.timestamp);
-            if (isPlaying) {
-                audio?.pause();
-                setIsPlaying(false);
-            }
+        if (data.timestamp !== undefined) {
+          audio.currentTime = data.timestamp;
+          if (isPlaying) {
+            audio.pause();
+            setIsPlaying(false);
+          }
         } else {
-            console.error("Pause event received without timestamp");
+          console.error("Pause event received without timestamp");
         }
-    });
+      });
 
     socket.on("sync", function (data) {
         console.log("Sync event received from server", data);
         if (data.timestamp !== undefined) {
-            setTimestamp(data.timestamp);
+            setTimestamp(data.timestamp); // Store current timestamp
 
             if (data.song) {
                 playSong(data.song.filename, data.song.title, data.song.artist, data.song.cover_art);
             }
 
+            console.log(data.is_playing);
+            console.log(data);
+            console.log(isPlaying);
+            
+
             if (data.action === 'seek') {
-                audio.currentTime = data.timestamp;
+                // audio.currentTime = data.timestamp;
             }
-            else if (data.is_playing && !isPlaying) {
-                if (audio !== null) {
-                    audio.currentTime = data.timestamp;
-                }
-                audio?.play();
+            else if (data.is_playing && isPlaying) {
+                // audio.currentTime = data.timestamp;
+                // audio.play();
                 setIsPlaying(true);
+                console.log('def');
+                
             }
-            else if (!data.is_playing && isPlaying) {
-                if (audio !== null) {
-                    audio.currentTime = data.timestamp;
-                }
-                audio?.pause();
+            else if (!data.is_playing && !isPlaying) {
+                // audio.currentTime = data.timestamp;
+                // audio.pause();
                 setIsPlaying(false);
+                console.log('abc');
+                
             }
 
-            // slider.value = (audio?.currentTime / audio?.duration) * 100;
+            // slider.value = (audio.currentTime / audio.duration) * 100;
         } else {
             console.error("Sync event received without timestamp");
         }
@@ -107,67 +162,31 @@ const JukeboxApp = () => {
         socket.emit("request_sync");
     }
 
-    // setInterval(function () {
-    //     console.log("Requesting sync from server");
-    //     socket.emit("request_sync");
-    // }, 1500);
-
-    // setInterval(function () {
-    //     if (isPlaying) {
-    //         socket.emit('timestamp', { timestamp: audio?.currentTime });
-    //     }
-    // }, 1000); // Sync every second
-
     function playSong(filePath, title, artist, cover_art) {
         console.log("Playing song:", filePath, title, artist, cover_art);
+        var audio = document.getElementById("songplayer");
         if (filePath) {
-            let encodedPath = btoa(unescape(encodeURIComponent(filePath)));
-            let audioPath = "http://127.0.0.1:5135/music/" + encodedPath;
-            setAudioSource(audioPath);
-            if (audio) {
-                audio.src = audioPath;
-            }
-            audio?.load();
+            let encodedPath = btoa(unescape(encodeURIComponent(filePath))); // Base64 encode the path
+            // audio.src = `/music/${encodedPath}`;
             setSongName(title);
             setSongArtist(artist);
             setAlbumArt(cover_art);
         }
-        if (audio !== null) {
-            audio.currentTime = timestamp;
-        }
+        // audio.currentTime = timestamp;
     }
 
-    function playpause() {
-        if (!hasPlayed) {
+
+    function handlePlayPause() {
+        if (!isPlaying) {
             requestInitialSync();
-            setHasPlayed(true);
-            playsong(true);
+            console.log("Playing songggggggggggggg");
+            socket.emit("play", { timestamp: audio.currentTime });
+            audio?.play();
+            setIsPlaying(true);
         } else {
-            if (isPlaying) {
-                pausesong();
-                setIsPlaying(false);
-            } else {
-                playsong();
-                setIsPlaying(true);
-            }
-        }
-    }
-
-    function playsong(skipTimestamp) {
-        console.log("Playing song");
-        if (!skipTimestamp) {
-            socket.emit("play", { timestamp: timestamp });
-        }
-        audio?.play();
-        setIsPlaying(true);
-    }
-
-    function pausesong() {
-        console.log("Pausing song");
-        if (isPlaying) {
-            setIsPlaying(false);
+            console.log("Pausing song");
             socket.emit("pause", { timestamp: timestamp });
-            audio?.pause();
+            setIsPlaying(false);
         }
     }
 
@@ -176,6 +195,7 @@ const JukeboxApp = () => {
             const response = await fetch("http://localhost:5135/library");
             if (response.ok) {
                 const data = await response.json();
+                console.log("Library data received:", data);
                 setQueueList(data);
             } else {
                 console.error("Error fetching library:", response.statusText);
@@ -209,6 +229,10 @@ const JukeboxApp = () => {
                             variant="outlined"
                             placeholder="Paste a SPOTIFY link to your favorite song, playlist, album then click enter/return"
                             fullWidth
+                            value={songUrl}
+                            onChange={handleInputChange}
+                            onKeyPress={handleKeyPress}
+                            disabled={loading}
                         />
                         <IconButton aria-label="search" sx={{ ml: 2 }}>
                             <SearchIcon />
@@ -225,46 +249,35 @@ const JukeboxApp = () => {
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {/* Dynamically populate rows here */}
-                                {queueList.map((song, index) => (
-                                    <TableRow key={index}>
-                                        <TableCell>{index + 1}</TableCell>
-                                        <TableCell>
-                                            <Box display="flex" alignItems="center">
-                                                <img src={song.cover_url} alt={song.song_name} style={{ width: 48, height: 48, marginRight: 16 }} />
-                                                <Box>
-                                                    <Typography>{song.song_name}</Typography>
-                                                    <Typography variant="body2" color="textSecondary">
-                                                        {song.artist}
-                                                    </Typography>
-                                                </Box>
-                                            </Box>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Button
-                                                variant="contained"
-                                                color="primary"
-                                                onClick={() => playSong(song.album_id, song.song_name, song.artist, song.cover_url)}
-                                            >
-                                                Play
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
+                            {queueList.map((song, index) => (
+                <TableRow key={index}>
+                    <TableCell>{index + 1}</TableCell>
+                    <TableCell>
+                        <Box display="flex" alignItems="center">
+                            <img src={song.cover_url} alt={song.song_name} style={{ width: 48, height: 48, marginRight: 16 }} />
+                            <Box>
+                                <Typography>{song.song_name}</Typography>
+                                <Typography variant="body2" color="textSecondary">
+                                    {song.artist}
+                                </Typography>
+                            </Box>
+                        </Box>
+                    </TableCell>
+                    <TableCell>
+                        <Button
+                            variant="contained"
+                            color="primary"
+                            onClick={() => playSong(song.album_id, song.song_name, song.artist, song.cover_url)}
+                        >
+                            Play
+                        </Button>
+                    </TableCell>
+                </TableRow>
+            ))}
                             </TableBody>
                         </Table>
                     </TableContainer>
                 </Box>
-
-                <audio
-                    id="audio_player"
-                    volume={volume}
-                    src={audioSource}
-                // onLoadedData={handleLoadedData}
-                // onTimeUpdate={() => setCurrentTime(audioRef.current.currentTime)}
-                // onEnded={() => setPlay(false)}
-                >
-                </audio>
 
                 <Box flex={1} p={2}>
                     <Box display="flex" alignItems="center">
@@ -296,13 +309,13 @@ const JukeboxApp = () => {
                     </Box>
 
                     <Box display="flex" justifyContent="space-between" mt={4}>
-                        <IconButton onClick={() => { }}>
+                        <IconButton onClick={() => {/* previous song logic */ }}>
                             <SkipPrevious />
                         </IconButton>
-                        <IconButton onClick={playpause}>
+                        <IconButton onClick={handlePlayPause}>
                             {isPlaying ? <Pause /> : <PlayArrow />}
                         </IconButton>
-                        <IconButton onClick={() => { }}>
+                        <IconButton onClick={() => {/* next song logic */ }}>
                             <SkipNext />
                         </IconButton>
                     </Box>
