@@ -27,6 +27,10 @@ const JukeboxApp = () => {
     const [clearQueueModalOpen, setClearQueueModalOpen] = useState(false);
     const [volume, setVolume] = useState(50);
     const [isPlaying, setIsPlaying] = useState(false);
+    const [timestamp, setTimestamp] = useState(0);
+    const [albumArt, setAlbumArt] = useState("https://baolamdong.vn/file/e7837c02845ffd04018473e6df282e92/dataimages/202004/original/images2282618_song_bien.jpg");
+    const [songName, setSongName] = useState("song name");
+    const [songArtist, setSongArtist] = useState("song artist");
 
     const handleVolumeChange = (event, newValue) => {
         setVolume(newValue);
@@ -44,35 +48,35 @@ const JukeboxApp = () => {
     socket.on("play", function (data) {
         console.log("Play event received from server", data);
         if (!isPlaying) {
-            audio.play();
-            isPlaying = true;
+            // audio.play();
+            setIsPlaying(true);
         }
     });
 
     socket.on("sync", function (data) {
         console.log("Sync event received from server", data);
         if (data.timestamp !== undefined) {
-            current_timestamp = data.timestamp; // Store current timestamp
+            setTimestamp(data.timestamp); // Store current timestamp
 
             if (data.song) {
                 playSong(data.song.filename, data.song.title, data.song.artist, data.song.cover_art);
             }
 
             if (data.action === 'seek') {
-                audio.currentTime = data.timestamp;
+                // audio.currentTime = data.timestamp;
             }
             else if (data.is_playing && !isPlaying) {
-                audio.currentTime = data.timestamp;
-                audio.play();
-                isPlaying = true;
+                // audio.currentTime = data.timestamp;
+                // audio.play();
+                setIsPlaying(true);
             }
             else if (!data.is_playing && isPlaying) {
-                audio.currentTime = data.timestamp;
-                audio.pause();
-                isPlaying = false;
+                // audio.currentTime = data.timestamp;
+                // audio.pause();
+                setIsPlaying(false);
             }
 
-            slider.value = (audio.currentTime / audio.duration) * 100;
+            // slider.value = (audio.currentTime / audio.duration) * 100;
         } else {
             console.error("Sync event received without timestamp");
         }
@@ -88,12 +92,12 @@ const JukeboxApp = () => {
         var audio = document.getElementById("songplayer");
         if (filePath) {
             let encodedPath = btoa(unescape(encodeURIComponent(filePath))); // Base64 encode the path
-            audio.src = `/music/${encodedPath}`;
-            $("#song-title").text(title);
-            $("#song-artist").text(artist);
-            $("#cover-art").attr("src", cover_art);
+            // audio.src = `/music/${encodedPath}`;
+            setSongName(title);
+            setSongArtist(artist);
+            setAlbumArt(cover_art);
         }
-        audio.currentTime = current_timestamp;
+        // audio.currentTime = timestamp;
     }
 
     function playpause() {
@@ -103,10 +107,10 @@ const JukeboxApp = () => {
         } else {
             if (isPlaying) {
                 pausesong();
-                isPlaying = false;
+                setIsPlaying(false);
             } else {
                 playsong();
-                isPlaying = true;
+                setIsPlaying(true);
             }
         }
     }
@@ -114,18 +118,18 @@ const JukeboxApp = () => {
     function playsong(skipTimestamp) {
         console.log("Playing song");
         if (!skipTimestamp) {
-            socket.emit("play", { timestamp: audio.currentTime });
+            socket.emit("play", { timestamp: timestamp });
         }
-        audio.play();
-        isPlaying = true;
+        // audio.play();
+        setIsPlaying(true);
     }
 
     function pausesong() {
         console.log("Pausing song");
         if (isPlaying) {
-            isPlaying = false;
-            socket.emit("pause", { timestamp: audio.currentTime });
-            audio.pause();
+            setIsPlaying(false);
+            socket.emit("pause", { timestamp: timestamp });
+            // audio.pause();
         }
     }
 
@@ -172,11 +176,11 @@ const JukeboxApp = () => {
                     <Box display="flex" alignItems="center">
                         <img
                             style={{ width: 96, height: 96, marginRight: 16 }}
-                            src="https://baolamdong.vn/file/e7837c02845ffd04018473e6df282e92/dataimages/202004/original/images2282618_song_bien.jpg"
+                            src={albumArt}
                         />
                         <Box>
-                            <Typography id="song-title" variant="h6">Song name</Typography>
-                            <Typography id="song-artist" variant="body2" color="textSecondary">Song artist</Typography>
+                            <Typography id="song-title" variant="h6">{songName}</Typography>
+                            <Typography id="song-artist" variant="body2" color="textSecondary">{songArtist}</Typography>
                         </Box>
                     </Box>
 
